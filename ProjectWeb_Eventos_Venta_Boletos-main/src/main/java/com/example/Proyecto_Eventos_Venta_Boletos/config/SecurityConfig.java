@@ -1,17 +1,25 @@
 package com.example.Proyecto_Eventos_Venta_Boletos.config;
 
+import com.example.Proyecto_Eventos_Venta_Boletos.config.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -19,32 +27,26 @@ public class SecurityConfig {
     }
 
     @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Desactivar CSRF: Requerimiento fundamental en APIs REST que consumen JSON y JWT
                 .csrf(csrf -> csrf.disable())
-
-                // Política de sesiones sin estado (Stateless)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Desactivar mecanismos de login por formulario HTML o login básico HTTP
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
-
-                // Reglas de autorización para la API REST
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos del catálogo, cotizaciones y compras
+                        .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/eventos/**").permitAll()
                         .requestMatchers("/api/v1/compras/**").permitAll()
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-
-                        // Endpoints protegidos por roles o autenticación JWT
                         .requestMatchers("/api/v1/organizador/**").hasRole("ORGANIZADOR")
                         .requestMatchers("/api/v1/admin/**").authenticated()
-
-                        // Cualquier otra ruta requerirá autenticación
                         .anyRequest().authenticated()
-                );
+                )
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
