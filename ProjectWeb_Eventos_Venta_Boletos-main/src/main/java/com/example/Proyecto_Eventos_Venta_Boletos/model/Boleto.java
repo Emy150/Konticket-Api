@@ -71,9 +71,9 @@ public class Boleto {
     }
 
     public int getRestantes() {
-        int total = cantidad != null ? cantidad : 0;
-        int vendidos = cantidadVendida != null ? cantidadVendida : 0;
-        return Math.max(total - vendidos, 0);
+        int total = (this.cantidad != null) ? this.cantidad : 0;
+        int vendida = (this.cantidadVendida != null) ? this.cantidadVendida : 0;
+        return Math.max(0, total - vendida);
     }
 
     @Override

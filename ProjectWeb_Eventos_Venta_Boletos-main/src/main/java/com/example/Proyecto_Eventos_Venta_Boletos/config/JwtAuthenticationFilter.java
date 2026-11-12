@@ -1,5 +1,6 @@
 package com.example.Proyecto_Eventos_Venta_Boletos.config;
 
+import com.example.Proyecto_Eventos_Venta_Boletos.config.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,7 +50,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
-            if (jwtService.validateToken(jwtToken, userDetails)) {
+            if (jwtService.isTokenValid(jwtToken)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,

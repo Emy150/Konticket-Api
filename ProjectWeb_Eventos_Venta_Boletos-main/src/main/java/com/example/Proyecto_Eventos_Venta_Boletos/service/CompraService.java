@@ -3,6 +3,9 @@ package com.example.Proyecto_Eventos_Venta_Boletos.service;
 import com.example.Proyecto_Eventos_Venta_Boletos.EstadosENUM.BoletoEstadoENUM;
 import com.example.Proyecto_Eventos_Venta_Boletos.dto.ResumenCompraDTO;
 import com.example.Proyecto_Eventos_Venta_Boletos.dto.ZonaVentaDTO;
+import com.example.Proyecto_Eventos_Venta_Boletos.exception.BadRequestException;
+import com.example.Proyecto_Eventos_Venta_Boletos.exception.ResourceNotFoundException;
+import com.example.Proyecto_Eventos_Venta_Boletos.exception.SinStockException;
 import com.example.Proyecto_Eventos_Venta_Boletos.model.Asistente;
 import com.example.Proyecto_Eventos_Venta_Boletos.model.Boleto;
 import com.example.Proyecto_Eventos_Venta_Boletos.model.Compra;
@@ -32,7 +35,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-
 
 @Service
 public class CompraService {
@@ -71,7 +73,6 @@ public class CompraService {
     @Transactional(readOnly = true)
     public List<ZonaVentaDTO> opcionesDeVenta(Evento evento) {
         List<ZonaVentaDTO> opciones = new ArrayList<>();
-        // Evento pasado, pausado, cancelado o agotado: se muestran las zonas pero nada está a la venta
         boolean abierto = evento.isDisponible();
 
         if (usaMapa(evento)) {
@@ -149,21 +150,24 @@ public class CompraService {
     @Transactional(readOnly = true)
     public ResumenCompraDTO cotizar(Long eventoId, Long tipoId, String asientos, Integer cantidad) {
         Evento evento = eventoRepository.findById(eventoId)
-                .orElseThrow(() -> new IllegalStateException("El evento no existe."));
+                .orElseThrow(() -> new ResourceNotFoundException("El evento con ID " + eventoId + " no existe."));
         Boleto tipo = boletoRepository.findById(tipoId)
-                .orElseThrow(() -> new IllegalStateException("Selecciona una zona o tipo de boleto."));
+                .orElseThrow(() -> new ResourceNotFoundException("El tipo de boleto con ID " + tipoId + " no existe."));
         return validarYCalcular(evento, tipo, separarAsientos(asientos), cantidad != null ? cantidad : 0);
     }
 
     private ResumenCompraDTO validarYCalcular(Evento evento, Boleto tipo, List<String> asientos, int cantidad) {
-        if (!tipo.isTipo() || tipo.getEvento() == null || !tipo.getEvento().getId().equals(evento.getId())) {
-            throw new IllegalStateException("El boleto seleccionado no pertenece a este evento.");
+        if (tipo == null || tipo.getEvento() == null || !tipo.getEvento().getId().equals(evento.getId())) {
+            throw new BadRequestException("El boleto seleccionado no pertenece a este evento.");
         }
         if (!evento.isDisponible()) {
-            throw new IllegalStateException("Este evento ya no tiene boletos a la venta.");
+            throw new BadRequestException("Este evento ya no tiene boletos a la venta.");
         }
-        if (tipo.getEstado() != BoletoEstadoENUM.DISPONIBLE || tipo.getRestantes() == 0) {
-            throw new IllegalStateException("Los boletos «" + tipo.getTipoNombre() + "» están agotados.");
+
+        int disponibles = tipo.getRestantes();
+
+        if (tipo.getEstado() != BoletoEstadoENUM.DISPONIBLE || disponibles <= 0) {
+            throw new SinStockException("Los boletos «" + tipo.getTipoNombre() + "» están agotados.");
         }
 
         Optional<MapaRecinto.Zona> zona = usaMapa(evento)
@@ -173,17 +177,17 @@ public class CompraService {
         List<String> asientosFinales = List.of();
         if (zona.isPresent() && zona.get().isNumerada()) {
             if (asientos.isEmpty()) {
-                throw new IllegalStateException("Selecciona al menos un asiento en el mapa.");
+                throw new BadRequestException("Selecciona al menos un asiento en el mapa.");
             }
             for (String asiento : asientos) {
                 if (!zona.get().existeAsiento(asiento)) {
-                    throw new IllegalStateException("El asiento " + asiento + " no existe en " + zona.get().nombre() + ".");
+                    throw new BadRequestException("El asiento " + asiento + " no existe en " + zona.get().nombre() + ".");
                 }
             }
             Set<String> ocupados = new HashSet<>(boletoRepository.asientosOcupados(evento.getId(), zona.get().codigo()));
             for (String asiento : asientos) {
                 if (ocupados.contains(asiento)) {
-                    throw new IllegalStateException("El asiento " + asiento + " ya fue vendido. Elige otro.");
+                    throw new BadRequestException("El asiento " + asiento + " ya fue vendido. Elige otro.");
                 }
             }
             asientosFinales = asientos;
@@ -191,13 +195,13 @@ public class CompraService {
         }
 
         if (cantidad < 1) {
-            throw new IllegalStateException("Selecciona al menos un boleto.");
+            throw new BadRequestException("Selecciona al menos un boleto.");
         }
         if (cantidad > MAXIMO_POR_COMPRA) {
-            throw new IllegalStateException("Puedes comprar máximo " + MAXIMO_POR_COMPRA + " boletos por compra.");
+            throw new BadRequestException("Puedes comprar máximo " + MAXIMO_POR_COMPRA + " boletos por compra.");
         }
-        if (cantidad > tipo.getRestantes()) {
-            throw new IllegalStateException("Solo quedan " + tipo.getRestantes() + " boletos de «" + tipo.getTipoNombre() + "».");
+        if (cantidad > disponibles) {
+            throw new SinStockException("No hay suficientes boletos disponibles. Quedan: " + disponibles);
         }
 
         BigDecimal precio = BigDecimal.valueOf(tipo.getPrecio() != null ? tipo.getPrecio() : 0.0).setScale(2, RoundingMode.HALF_UP);
@@ -249,31 +253,28 @@ public class CompraService {
         String nombre = nombreTitular == null ? "" : nombreTitular.trim().replaceAll("\\s+", " ");
         String correoNormalizado = correo == null ? "" : correo.trim().toLowerCase(Locale.ROOT);
         if (nombre.length() < 3) {
-            throw new IllegalStateException("Escribe el nombre completo del titular.");
+            throw new BadRequestException("Escribe el nombre completo del titular.");
         }
         if (!correoNormalizado.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
-            throw new IllegalStateException("El correo electrónico no es válido.");
+            throw new BadRequestException("El correo electrónico no es válido.");
         }
         if (telefono == null || telefono.isBlank()) {
-            throw new IllegalStateException("Escribe un teléfono de contacto.");
+            throw new BadRequestException("Escribe un teléfono de contacto.");
         }
 
-        // Bloquea el tipo de boleto hasta que termine la transacción
         Boleto tipo = boletoRepository.buscarParaComprar(tipoId)
-                .orElseThrow(() -> new IllegalStateException("El boleto seleccionado ya no existe."));
+                .orElseThrow(() -> new ResourceNotFoundException("El boleto con ID " + tipoId + " no existe."));
         Evento evento = tipo.getEvento();
         if (evento == null || !evento.getId().equals(eventoId)) {
-            throw new IllegalStateException("El boleto seleccionado no pertenece a este evento.");
+            throw new BadRequestException("El boleto seleccionado no pertenece a este evento.");
         }
         ResumenCompraDTO resumen = validarYCalcular(evento, tipo, separarAsientos(asientos), cantidad != null ? cantidad : 0);
 
-        // El asistente se identifica por su correo; si es la primera vez que compra, se registra
         Asistente asistente = asistenteRepository.findByCorreo(correoNormalizado)
                 .orElseGet(() -> asistenteRepository.save(Asistente.builder()
                         .nombre(nombre.length() > 50 ? nombre.substring(0, 50) : nombre)
                         .correo(correoNormalizado)
                         .telefono(telefono.trim())
-                        // Contraseña aleatoria: la cuenta queda creada y podrá activarse al registrarse
                         .contrasenia(passwordEncoder.encode(UUID.randomUUID().toString()))
                         .build()));
 
@@ -286,7 +287,6 @@ public class CompraService {
                 .metodoPago(metodoPago != null && !metodoPago.isBlank() ? metodoPago : "Tarjeta de Crédito / Débito")
                 .build();
 
-        // Un Boleto vendido por cada asiento (o por cada entrada en zonas sin asientos)
         List<Boleto> vendidos = new ArrayList<>();
         for (int i = 0; i < resumen.getCantidad(); i++) {
             vendidos.add(Boleto.builder()
@@ -303,7 +303,6 @@ public class CompraService {
         }
         compra.setBoletos(vendidos);
 
-        // Descontar del inventario del tipo de boleto
         int vendidosTipo = (tipo.getCantidadVendida() != null ? tipo.getCantidadVendida() : 0) + resumen.getCantidad();
         tipo.setCantidadVendida(vendidosTipo);
         if (tipo.getRestantes() == 0) {
@@ -323,7 +322,7 @@ public class CompraService {
                 return codigo.toString();
             }
         }
-        throw new IllegalStateException("No se pudo generar el código de pedido, intenta de nuevo.");
+        throw new BadRequestException("No se pudo generar el código de pedido, intenta de nuevo.");
     }
 
     // ---------------------------------------------------------------- Confirmación
@@ -331,7 +330,7 @@ public class CompraService {
     @Transactional(readOnly = true)
     public Map<String, Object> datosConfirmacion(Long compraId) {
         Compra compra = compraRepository.findById(compraId)
-                .orElseThrow(() -> new IllegalStateException("La compra no existe."));
+                .orElseThrow(() -> new ResourceNotFoundException("La compra con ID " + compraId + " no existe."));
         List<Boleto> boletos = compra.getBoletos() != null ? compra.getBoletos() : List.of();
         Boleto primero = boletos.isEmpty() ? null : boletos.get(0);
         Evento evento = primero != null ? primero.getEvento() : null;

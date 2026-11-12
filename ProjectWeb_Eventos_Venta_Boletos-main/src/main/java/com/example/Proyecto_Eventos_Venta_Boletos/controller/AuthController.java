@@ -5,12 +5,16 @@ import com.example.Proyecto_Eventos_Venta_Boletos.dto.response.AuthResponseDTO;
 import com.example.Proyecto_Eventos_Venta_Boletos.config.JwtService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -26,26 +30,35 @@ public class AuthController {
     private JwtService jwtService;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDTO request) {
+        try {
+            // Valida las credenciales contra la BD cifradas con BCrypt
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
-        String token = jwtService.generateToken(userDetails);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
+            String token = jwtService.generateToken(userDetails.getUsername());
 
-        String role = userDetails.getAuthorities().stream()
-                .findFirst()
-                .map(authority -> authority.getAuthority())
-                .orElse("ROLE_ORGANIZADOR");
+            String role = userDetails.getAuthorities().stream()
+                    .findFirst()
+                    .map(authority -> authority.getAuthority())
+                    .orElse("ROLE_ORGANIZADOR");
 
-        AuthResponseDTO response = AuthResponseDTO.builder()
-                .token(token)
-                .type("Bearer")
-                .email(userDetails.getUsername())
-                .rol(role)
-                .build();
+            AuthResponseDTO response = AuthResponseDTO.builder()
+                    .token(token)
+                    .type("Bearer")
+                    .email(userDetails.getUsername())
+                    .rol(role)
+                    .build();
 
-        return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
+
+        } catch (AuthenticationException e) {
+            // Estilo exacto del profesor para credenciales inválidas (HTTP 401)
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Credenciales inválidas"));
+        }
     }
 }

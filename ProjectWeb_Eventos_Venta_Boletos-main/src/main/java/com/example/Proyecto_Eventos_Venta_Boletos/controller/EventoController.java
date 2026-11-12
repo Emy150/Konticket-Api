@@ -2,6 +2,7 @@ package com.example.Proyecto_Eventos_Venta_Boletos.controller;
 
 import com.example.Proyecto_Eventos_Venta_Boletos.EstadosENUM.EstadoEventoENUM;
 import com.example.Proyecto_Eventos_Venta_Boletos.dto.response.EventoResponseDTO;
+import com.example.Proyecto_Eventos_Venta_Boletos.exception.ResourceNotFoundException;
 import com.example.Proyecto_Eventos_Venta_Boletos.model.Evento;
 import com.example.Proyecto_Eventos_Venta_Boletos.repository.EventoRepository;
 import org.springframework.http.MediaType;
@@ -70,18 +71,18 @@ public class EventoController {
     // Detalle individual de un evento por ID
     @GetMapping("/{id}")
     public ResponseEntity<EventoResponseDTO> obtenerEventoPorId(@PathVariable Long id) {
-        return eventoRepository.findById(id)
-                .map(this::aEventoResponseDTO)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("El evento con ID " + id + " no existe."));
+        return ResponseEntity.ok(aEventoResponseDTO(evento));
     }
 
     // Banner del evento
     @GetMapping("/{id}/imagen")
     public ResponseEntity<byte[]> imagenEvento(@PathVariable Long id) {
-        Evento evento = eventoRepository.findById(id).orElse(null);
-        if (evento == null || evento.getImagenEvento() == null || evento.getImagenEvento().length == 0) {
-            return ResponseEntity.notFound().build();
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("El evento con ID " + id + " no existe."));
+        if (evento.getImagenEvento() == null || evento.getImagenEvento().length == 0) {
+            throw new ResourceNotFoundException("El evento con ID " + id + " no tiene una imagen registrada.");
         }
         return respuestaImagen(evento.getImagenEvento());
     }
@@ -89,9 +90,10 @@ public class EventoController {
     // Croquis del recinto
     @GetMapping("/{id}/croquis")
     public ResponseEntity<byte[]> croquisEvento(@PathVariable Long id) {
-        Evento evento = eventoRepository.findById(id).orElse(null);
-        if (evento == null || evento.getCroquis() == null || evento.getCroquis().length == 0) {
-            return ResponseEntity.notFound().build();
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("El evento con ID " + id + " no existe."));
+        if (evento.getCroquis() == null || evento.getCroquis().length == 0) {
+            throw new ResourceNotFoundException("El evento con ID " + id + " no tiene un croquis registrado.");
         }
         return respuestaImagen(evento.getCroquis());
     }

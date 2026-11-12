@@ -170,7 +170,171 @@
     },
     {
       "name": "Pruebas de error",
-      "item": []
+      "item": [
+        {
+          "name": "Recurso no encontrado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/eventos/666",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "eventos",
+                "666"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sin boletos",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/compras/cotizar?eventoId=1&tipoId=1&cantidad=9999&asientos=e4",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "compras",
+                "cotizar"
+              ],
+              "query": [
+                {
+                  "key": "eventoId",
+                  "value": "1"
+                },
+                {
+                  "key": "tipoId",
+                  "value": "1"
+                },
+                {
+                  "key": "cantidad",
+                  "value": "9999"
+                },
+                {
+                  "key": "asientos",
+                  "value": "e4"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Datos incorrectos",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/compras/cotizar?eventoId=1&tipoId=1&asientos=z0123&cantidad=1",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "compras",
+                "cotizar"
+              ],
+              "query": [
+                {
+                  "key": "eventoId",
+                  "value": "1"
+                },
+                {
+                  "key": "tipoId",
+                  "value": "1"
+                },
+                {
+                  "key": "asientos",
+                  "value": "z0123"
+                },
+                {
+                  "key": "cantidad",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "fallo de validación",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"eventoId\": 1,\r\n  \"tipoId\": 1,\r\n  \"asientos\": \"\",\r\n  \"cantidad\": 0,\r\n  \"fullName\": \"\",\r\n  \"firstLastName\": \"\",\r\n  \"secondLastName\": \"\",\r\n  \"phone\": \"\",\r\n  \"email\": \"correo-invalido\",\r\n  \"paymentMethod\": \"\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/compras",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "compras"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "New Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"usuario.inexistente@correo.com\",\r\n  \"password\": \"PasswordIncorrecto123\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }
